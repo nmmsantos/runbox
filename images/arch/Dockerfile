@@ -108,6 +108,8 @@ RUN \
         7zip \
         curl \
         docker \
+        docker-buildx \
+        docker-compose \
         expect \
         git \
         go-yq \
