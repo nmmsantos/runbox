@@ -5,17 +5,17 @@ set -eu
 exec 3>&1 >&2
 
 if [ "$#" -ne 4 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ] || [ -z "${4:-}" ]; then
-    printf 'usage: %s <destination> <publisher> <flavor> <version>\n' "${0##*/}" >&2
+    printf 'usage: %s <base-dir> <publisher> <flavor> <version>\n' "${0##*/}" >&2
     exit 1
 fi
 
-DEST="$1"
+BASE_DIR="$1"
 PUBLISHER="$2"
 FLAVOR="$3"
 VERSION="$4"
 
-mkdir -p "$(dirname "$DEST")"
-DEST="$(readlink -f "$DEST")"
+mkdir -p "$BASE_DIR"
+DEST="$(readlink -f "$BASE_DIR")/wine-${PUBLISHER}-${FLAVOR}-${VERSION}"
 
 if [ ! -d "$DEST" ]; then
     INSTALL_DIR="$(mktemp -d)"
@@ -52,11 +52,11 @@ fi
 
 QUOTED_DEST="$(printf "'"; printf '%s' "$DEST" | sed "s/'/'\\\\''/g"; printf "'")"
 
-tee /dev/fd/3 >/dev/null <<EOF
+tee /dev/fd/3 >/dev/null <<SH
 case ":\$PATH:" in
     *:$QUOTED_DEST/bin:*) ;;
     *) PATH=$QUOTED_DEST/bin:"\$PATH" ;;
 esac
 
 export PATH
-EOF
+SH

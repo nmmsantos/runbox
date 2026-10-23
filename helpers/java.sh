@@ -5,15 +5,15 @@ set -eu
 exec 3>&1 >&2
 
 if [ "$#" -ne 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
-    printf 'usage: %s <destination> <version>\n' "${0##*/}" >&2
+    printf 'usage: %s <base-dir> <version>\n' "${0##*/}" >&2
     exit 1
 fi
 
-DEST="$1"
+BASE_DIR="$1"
 VERSION="$2"
 
-mkdir -p "$(dirname "$DEST")"
-DEST="$(readlink -f "$DEST")"
+mkdir -p "$BASE_DIR"
+DEST="$(readlink -f "$BASE_DIR")/java-temurin-${VERSION}"
 
 if [ ! -d "$DEST" ]; then
     INSTALL_DIR="$(mktemp -d)"

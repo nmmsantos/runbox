@@ -5,17 +5,15 @@ set -eu
 exec 3>&1 >&2
 
 if [ "$#" -lt 1 ] || [ -z "${1:-}" ]; then
-    printf 'usage: %s <destination> [gamescope arguments...]\n' "${0##*/}" >&2
+    printf 'usage: %s <base-dir> [gamescope arguments...]\n' "${0##*/}" >&2
     exit 1
 fi
 
-DEST="$1"
+BASE_DIR="$1"
 shift
 
-mkdir -p "$DEST/bin"
-DEST="$(readlink -f "$DEST")"
-
-QUOTED_DEST="$(printf "'"; printf '%s' "$DEST" | sed "s/'/'\\\\''/g"; printf "'")"
+mkdir -p "$BASE_DIR/bin"
+DEST="$(readlink -f "$BASE_DIR")/bin"
 
 GAMESCOPE_ARGS=
 
@@ -24,7 +22,8 @@ for ARG in "$@"; do
     GAMESCOPE_ARGS="${GAMESCOPE_ARGS:+$GAMESCOPE_ARGS }$QUOTED_ARG"
 done
 
-tee "$DEST/bin/gs" >/dev/null <<EOF
+print_wrapper() {
+cat <<SH
 #!/bin/sh
 
 set -eu
@@ -39,11 +38,11 @@ if [ "\${GAMESCOPE_SESSION:-}" != 1 ]; then
     exec sudo -E openvt -s -w -- seatd-launch -- "\$0" "\$@"
 fi
 
-chown "\$MY_USER:" "\$SEATD_SOCK"
+chown "\$RUNBOX_USER:" "\$SEATD_SOCK"
 
 exec setpriv \\
-    --reuid "\$MY_USER" \\
-    --regid "\$MY_USER" \\
+    --reuid "\$RUNBOX_USER" \\
+    --regid "\$RUNBOX_USER" \\
     --init-groups \\
     --inh-caps +sys_nice \\
     --ambient-caps +sys_nice \\
@@ -52,15 +51,20 @@ exec setpriv \\
         $GAMESCOPE_ARGS \\
         -- \\
         "\$@"
-EOF
+SH
+}
 
-chmod 0755 "$DEST/bin/gs"
+print_wrapper >"$DEST/gs"
 
-tee /dev/fd/3 >/dev/null <<EOF
+chmod 0755 "$DEST/gs"
+
+QUOTED_DEST="$(printf "'"; printf '%s' "$DEST" | sed "s/'/'\\\\''/g"; printf "'")"
+
+tee /dev/fd/3 >/dev/null <<SH
 case ":\$PATH:" in
-    *:$QUOTED_DEST/bin:*) ;;
-    *) PATH=$QUOTED_DEST/bin:"\$PATH" ;;
+    *:$QUOTED_DEST:*) ;;
+    *) PATH=$QUOTED_DEST:"\$PATH" ;;
 esac
 
 export PATH
-EOF
+SH

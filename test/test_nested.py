@@ -29,12 +29,13 @@ print(json.dumps(info))
         shared = self.root / "shared"
         shared.mkdir()
         dest = shared / "uv runtime"
-        dest.mkdir()
+        installed = dest / "uv-fixture"
+        installed.mkdir(parents=True)
         child_code = f"""assert Path({str(shared / "input")!r}).read_text() == 'host'
 Path({str(shared / "output")!r}).write_text('child')
 result = subprocess.run(['runbox', 'helper', 'uv', {str(dest)!r}, 'fixture'], capture_output=True, text=True)
 assert result.returncode == 0, result.stderr
-assert {str(dest)!r} in result.stdout
+assert {str(installed)!r} in result.stdout
 print('nested-helper-ok')
 """
         (shared / "input").write_text("host")
@@ -90,6 +91,7 @@ print('nested-helper-ok')
 
     def test_sudo_helper_preserves_marker_when_requested(self):
         dest = self.scripts / "cached"
-        dest.mkdir()
+        installed = dest / "uv-fixture"
+        installed.mkdir(parents=True)
         code = f"result = subprocess.run(['sudo', '-E', 'runbox', 'helper', 'uv', {str(dest)!r}, 'fixture'], capture_output=True); assert result.returncode == 0, result.stderr; sys.stdout.buffer.write(result.stdout)"
-        self.assertIn(str(dest).encode(), self.run_script(code).stdout)
+        self.assertIn(str(installed).encode(), self.run_script(code).stdout)

@@ -142,7 +142,7 @@ DATA_DIR="$(dirname "$ME")/.data"
 
 mkdir -p "$DATA_DIR"
 
-ACTIVATION="$(runbox helper java "$DATA_DIR/jdk-$JAVA_VERSION" "$JAVA_VERSION")"
+ACTIVATION="$(runbox helper java "$DATA_DIR" "$JAVA_VERSION")"
 eval "$ACTIVATION"
 
 exec java -version
@@ -157,9 +157,9 @@ sudo ./java-demo.sh
 
 The first invocation launches the same script inside an `arch` container. Runbox sets `RUNBOX_SCRIPT` to the script's absolute path, so the second invocation continues with the Java setup instead of launching another container. `-- "$@"` forwards the original script arguments.
 
-The `java` helper takes an installation destination followed by an exact JDK version. It downloads the JDK when the destination directory is absent and prints shell commands to set `JAVA_HOME` and update `PATH`. The assignment captures those commands; `eval` applies them to the current shell. With `set -e`, a failed helper stops the script before evaluation.
+The `java` helper takes a parent destination directory followed by an exact JDK version. It downloads the JDK into `java-temurin-<version>` under that directory when that installation is absent and prints shell commands to set `JAVA_HOME` and update `PATH`. The assignment captures those commands; `eval` applies them to the current shell. With `set -e`, a failed helper stops the script before evaluation.
 
-The example pins a Java version and stores it in `.data` beside the script. That directory is in the automatic writable mount, so the installation survives container removal and is reused on subsequent runs. Change `JAVA_VERSION` to select another release; its versioned destination keeps installations separate.
+The example pins a Java version and stores it in `.data` beside the script. That directory is in the automatic writable mount, so the installation survives container removal and is reused on subsequent runs. Change `JAVA_VERSION` to select another release; the helper creates a separate folder for each version.
 
 The final command prints the installed Java version. Helpers run inside the container, and their diagnostics go to standard error. Standard output is forwarded only when the helper succeeds.
 

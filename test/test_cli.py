@@ -91,5 +91,5 @@ class CliTests(DockerTest):
             "helper", "java", "--", "--help", environment={"RUNBOX_SCRIPT": "1"}
         )
         self.assertEqual(result.returncode, 1)
-        self.assertIn(b"usage: java <destination> <version>", result.stderr)
+        self.assertIn(b"usage: java <base-dir> <version>", result.stderr)
         self.assertFalse(result.stdout)

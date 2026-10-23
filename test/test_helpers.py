@@ -6,6 +6,7 @@ import tarfile
 import textwrap
 import zipfile
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Literal, TypedDict
 
 from support import CommandArgument, DockerTest
@@ -39,18 +40,35 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         return {"PATH": f"{directory}:/usr/local/bin:/usr/bin:/bin"}
 
     def test_installer_usage_and_no_output_on_failure(self):
-        for name in ("java", "javafx", "uv", "wine", "wine-mono"):
+        for name in ("java", "javafx", "uv", "wine", "wine-mono", "gamescope"):
             with self.subTest(helper=name):
                 result = self.helper(name)
                 self.assertEqual(result["code"], 1)
                 self.assertIn("usage:", result["stderr"])
                 self.assertEqual(result["stdout"], "")
 
+    def installation(
+        self,
+        destination: Path,
+        name: str,
+        version: str = "fixture",
+        publisher: str = "kron4ek",
+        flavor: str = "amd64",
+    ) -> Path:
+        folder = {
+            "java": f"java-temurin-{version}",
+            "javafx": f"javafx-{version}",
+            "uv": f"uv-{version}",
+            "wine": f"wine-{publisher}-{flavor}-{version}",
+        }[name]
+        return destination / folder
+
     def test_cached_installers_and_activation_without_runtimes_dir(self):
         for name in ("java", "javafx", "uv", "wine"):
             with self.subTest(helper=name):
                 dest = self.scripts / f"{name} runtime"
-                dest.mkdir()
+                installed = self.installation(dest, name)
+                installed.mkdir(parents=True)
                 args: list[CommandArgument] = (
                     [dest, "kron4ek", "amd64", "fixture"]
                     if name == "wine"
@@ -70,7 +88,7 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 }[name]
                 script = activation + '\nprintf "%s\\n" "' + expression + '"\n'
                 code = f"print(subprocess.check_output(['sh', '-c', {script!r}], text=True), end='')"
-                expected = str(dest / "bin") if name == "wine" else str(dest)
+                expected = str(installed / "bin") if name == "wine" else str(installed)
                 self.assertEqual(
                     self.run_script(code).stdout.decode().strip(), expected
                 )
@@ -79,7 +97,8 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         for name in ("java", "javafx", "uv", "wine"):
             with self.subTest(helper=name):
                 dest = self.scripts / (name + ' "quoted" $HOME `literal` single\' *')
-                dest.mkdir()
+                installed = self.installation(dest, name)
+                installed.mkdir(parents=True)
                 args: list[CommandArgument] = (
                     [dest, "kron4ek", "amd64", "fixture"]
                     if name == "wine"
@@ -95,7 +114,7 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 }[name]
                 script = result["stdout"] + '\nprintf "%s\\n" "' + expression + '"\n'
                 code = f"print(subprocess.check_output(['sh', '-c', {script!r}], text=True), end='')"
-                expected = str(dest / "bin") if name == "wine" else str(dest)
+                expected = str(installed / "bin") if name == "wine" else str(installed)
                 self.assertEqual(
                     self.run_script(code).stdout.decode().strip(), expected
                 )
@@ -176,7 +195,6 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         self.assertEqual(stdout, b"completed\n")
 
     def test_gamescope_arguments_preserve_quoting(self):
-        data = self.scripts / "data"
         arguments = [
             "--option",
             "two words",
@@ -185,10 +203,6 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
             "$HOME",
             "$(touch SHOULD_NOT_EXIST)",
         ]
-        result = self.helper("gamescope", data, *arguments)
-        self.assertEqual(result["code"], 0, result)
-        wrapper = data / "bin" / "gs"
-        self.assertTrue(wrapper.stat().st_mode & 0o111)
         stub_dir = self.scripts / "stubs"
         self.stub("chown", "pass\n")
         self.stub(
@@ -209,16 +223,32 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         )
         env = {
             "GAMESCOPE_SESSION": "1",
-            "MY_USER": "nuno",
+            "RUNBOX_USER": "nuno",
             "SEATD_SOCK": "/fixture/socket",
             "PATH": f"{stub_dir}:/usr/bin:/bin",
         }
-        code = f"result = subprocess.check_output([{str(wrapper)!r}, 'app argument'], env=dict(os.environ, **{env!r}), text=True); print(result, end='')"
-        received = json.loads(self.run_script(code).stdout)
-        self.assertEqual(
-            received, ["--backend", "drm", *arguments, "--", "app argument"]
-        )
-        self.assertFalse((self.scripts / "SHOULD_NOT_EXIST").exists())
+        code = f"""
+args = {arguments!r}
+base = {str(self.scripts / "gamescope 'data")!r}
+result = subprocess.run(['runbox', 'helper', 'gamescope', base, *args], capture_output=True, text=True, check=True)
+wrapper = Path(base) / 'bin/gs'
+assert wrapper.stat().st_mode & 0o111
+activation = result.stdout + chr(10) + 'printenv PATH'
+assert subprocess.check_output(['sh', '-c', activation], text=True).strip().split(':')[0] == str(wrapper.parent)
+environment = dict(os.environ, **{env!r})
+received = subprocess.check_output([str(wrapper), 'app argument'], env=environment, text=True)
+assert json.loads(received) == ['--backend', 'drm', *args, '--', 'app argument']
+assert not Path('SHOULD_NOT_EXIST').exists()
+original = wrapper.read_text()
+other_base = base + '-other'
+subprocess.run(['runbox', 'helper', 'gamescope', other_base, '--other'], capture_output=True, check=True)
+assert (Path(other_base) / 'bin/gs').is_file()
+assert wrapper.read_text() == original
+subprocess.run(['runbox', 'helper', 'gamescope', base], capture_output=True, check=True)
+received = subprocess.check_output([str(wrapper), 'app argument'], env=environment, text=True)
+assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
+"""
+        self.run_script(code)
 
     def test_wine_mono_cached_and_invalid_arch(self):
         prefix = self.scripts / "prefix"
@@ -242,7 +272,7 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         dest = self.scripts / "uv installed"
         result = self.helper("uv", dest, "0.9.7")
         self.assertEqual(result["code"], 0, result)
-        self.assertTrue((dest / "uv").is_file())
+        self.assertTrue((dest / "uv-0.9.7" / "uv").is_file())
         script = result["stdout"] + "\nexec uv --version\n"
         code = f"print(subprocess.check_output(['sh', '-c', {script!r}], text=True), end='')"
         self.assertEqual(self.run_script(code).stdout, b"uv 0.9.7\n")
@@ -285,7 +315,20 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
             archive.writestr(
                 "javafx-sdk-fixture/lib/javafx.controls.jar", b"fixture jar"
             )
-        payloads = {"java": java, "wine": wine, "proton": proton, "javafx": str(javafx)}
+        uv = archives / "uv.tar.gz"
+        with tarfile.open(uv, "w:gz") as archive:
+            data = b"#!/bin/sh\nexit 0\n"
+            entry = tarfile.TarInfo("uv-fixture/uv")
+            entry.mode = 0o755
+            entry.size = len(data)
+            archive.addfile(entry, io.BytesIO(data))
+        payloads = {
+            "uv": str(uv),
+            "java": java,
+            "wine": wine,
+            "proton": proton,
+            "javafx": str(javafx),
+        }
         env = self.stub(
             "curl",
             f"""
@@ -298,6 +341,8 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 data = pathlib.Path(payloads['java']).read_bytes()
             elif 'openjfx' in url:
                 data = pathlib.Path(payloads['javafx']).read_bytes()
+            elif 'astral-sh/uv' in url:
+                data = pathlib.Path(payloads['uv']).read_bytes()
             elif 'Kron4ek' in url:
                 data = pathlib.Path(payloads['wine']).read_bytes()
             elif 'proton-ge-custom' in url:
@@ -310,21 +355,47 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 sys.stdout.buffer.write(data)
         """,
         )
+        curl_stub = (self.scripts / "stubs/curl").read_text()
         cases = [
             ("java", ["fixture"], "bin/java"),
+            ("java", ["other-version"], "bin/java"),
+            ("uv", ["fixture"], "uv"),
+            ("uv", ["other-version"], "uv"),
             ("javafx", ["fixture"], "lib/javafx.controls.jar"),
             ("wine", ["kron4ek", "amd64", "fixture"], "bin/wine"),
             ("wine", ["proton-ge", "amd64", "fixture"], "bin/wine"),
+            ("wine", ["kron4ek", "other-flavor", "fixture"], "bin/wine"),
+            ("wine", ["kron4ek", "amd64", "other-version"], "bin/wine"),
         ]
-        for index, (name, args, required) in enumerate(cases):
+        dest = self.scripts / "installed"
+        dest.mkdir()
+        for name, args, required in cases:
             with self.subTest(helper=name, arguments=args):
-                dest = self.scripts / f"installed-{index}"
+                installed = self.installation(
+                    dest,
+                    name,
+                    args[-1],
+                    publisher=args[0] if name == "wine" else "kron4ek",
+                    flavor=args[1] if name == "wine" else "amd64",
+                )
                 result = self.helper(name, dest, *args, environment=env)
                 self.assertEqual(result["code"], 0, result)
-                self.assertTrue((dest / required).is_file())
-                self.assertIn(str(dest), result["stdout"])
+                self.assertTrue((installed / required).is_file())
+                self.assertIn(str(installed), result["stdout"])
+                cached = self.helper(
+                    name,
+                    dest,
+                    *args,
+                    environment=self.stub("curl", "raise SystemExit(99)\n"),
+                )
+                self.assertEqual(cached["code"], 0, cached)
+                self.assertEqual(cached["stdout"], result["stdout"])
+                (self.scripts / "stubs/curl").write_text(curl_stub)
+
                 if name == "wine":
-                    self.assertTrue((dest / "bin/winetricks").stat().st_mode & 0o111)
+                    self.assertTrue(
+                        (installed / "bin/winetricks").stat().st_mode & 0o111
+                    )
 
     def test_failed_download_never_emits_activation(self):
         env = self.stub(
@@ -343,7 +414,8 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 self.assertNotEqual(result["code"], 0, result)
                 self.assertEqual(result["stdout"], "")
                 self.assertIn("fixture download failed", result["stderr"])
-                self.assertFalse(dest.exists())
+                self.assertTrue(dest.is_dir())
+                self.assertFalse(self.installation(dest, name).exists())
 
     def test_wine_mono_fresh_install_uses_x86_and_removes_msi(self):
         env = self.stub(
