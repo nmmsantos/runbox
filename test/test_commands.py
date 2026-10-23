@@ -2,6 +2,7 @@
 
 import json
 import os
+import pwd
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +52,7 @@ if args[0] == 'run':
         env.pop("DISPLAY", None)
         env.pop("WAYLAND_DISPLAY", None)
         env.pop("SUDO_UID", None)
+        env.pop("RUNBOX_UID", None)
         env.update(settings)
         environment = {key: value for key, value in env.items() if value is not None}
         arguments = [str(BINARY), action, "arch"]
@@ -76,6 +78,7 @@ if args[0] == 'run':
         for argument in ("--no-cache", "--pull", "--progress", "--network"):
             self.assertIn(argument, build)
         resolved_uid = os.getuid() if uid is None else uid
+        account = pwd.getpwuid(resolved_uid)
         self.assertEqual(
             build[build.index("-t") + 1], f"runbox-arch-{resolved_uid}:local"
         )
@@ -88,7 +91,9 @@ if args[0] == 'run':
             (Path(__file__).parents[1] / "images/arch/Dockerfile").read_bytes(),
         )
         self.assertIn("--build-arg", build)
-        self.assertIn(f"my_uid={os.getuid() if uid is None else uid}", build)
+        self.assertIn(f"my_uid={resolved_uid}", build)
+        self.assertIn(f"my_gid={account.pw_gid}", build)
+        self.assertIn(f"my_user={account.pw_name}", build)
         self.assertIn(
             f"xdg_runtime_dir={self.runtime if runtime is None else runtime}", build
         )
@@ -121,13 +126,27 @@ if args[0] == 'run':
     def test_sudo_uid_selects_build_account(self):
         self.invoke(action="build", SUDO_UID="0")
         self.assert_build(uid=0)
-        build = next(call for call in self.calls if call[0] == "build")
-        self.assertIn("my_user=root", build)
-        self.assertIn("my_gid=0", build)
 
     def test_runtime_fallback_uses_resolved_uid(self):
         self.invoke(action="build", SUDO_UID="0", XDG_RUNTIME_DIR=None)
         self.assert_build(uid=0, runtime="/run/user/0")
+
+    def test_runbox_uid_takes_precedence_over_sudo_uid(self):
+        self.invoke(action="build", RUNBOX_UID="0", SUDO_UID="invalid")
+        self.assert_build(uid=0)
+
+    def test_invalid_runbox_uid_fails_before_docker(self):
+        for value in ("", "invalid", "-1", "4294967296"):
+            with self.subTest(value=value):
+                result = subprocess.run(
+                    [str(BINARY), "build", "arch"],
+                    env=dict(os.environ, RUNBOX_UID=value, SUDO_UID="0"),
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(b"RUNBOX_UID must be a valid UID", result.stderr)
+                self.assertFalse(self.log.exists())
 
     def test_runtime_path_preserves_non_utf8_bytes(self):
         runtime = os.fsdecode(os.fsencode(self.runtime) + b"/runtime-\xff")
@@ -137,6 +156,7 @@ if args[0] == 'run':
     def test_invalid_sudo_uid_fails_before_docker(self):
         for value in ("", "invalid", "-1", "4294967296"):
             env = dict(os.environ, SUDO_UID=value)
+            env.pop("RUNBOX_UID", None)
             result = subprocess.run(
                 [str(BINARY), "run", "arch", "fixture", str(self.script)],
                 env=env,

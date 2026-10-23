@@ -40,11 +40,20 @@ pub(crate) struct HostUser {
 }
 
 pub(crate) fn resolve_user() -> Result<HostUser> {
-    let uid = match env::var("SUDO_UID") {
-        Ok(value) => value.parse().context("SUDO_UID must be a valid UID")?,
-        Err(env::VarError::NotPresent) => nix::unistd::getuid().as_raw(),
-        Err(error) => return Err(error).context("read SUDO_UID"),
-    };
+    let mut uid = nix::unistd::getuid().as_raw();
+
+    for name in ["RUNBOX_UID", "SUDO_UID"] {
+        match env::var(name) {
+            Ok(value) => {
+                uid = value
+                    .parse()
+                    .with_context(|| format!("{name} must be a valid UID"))?;
+                break;
+            }
+            Err(env::VarError::NotPresent) => continue,
+            Err(error) => return Err(error).with_context(|| format!("read {name}")),
+        }
+    }
 
     let account = User::from_uid(Uid::from_raw(uid))?
         .with_context(|| format!("no account exists for UID={uid}"))?;

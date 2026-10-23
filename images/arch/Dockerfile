@@ -27,9 +27,11 @@ ARG input_gid
 ARG render_gid
 ARG video_gid
 
-ENV MY_USER="$my_user"
-ENV SHELL=/usr/bin/bash
+ENV RUNBOX_GID="$my_gid"
+ENV RUNBOX_UID="$my_uid"
+ENV RUNBOX_USER="$my_user"
 ENV XDG_RUNTIME_DIR="$xdg_runtime_dir"
+ENV SHELL=/usr/bin/bash
 
 RUN --mount=type=bind,from=build,source=/paru-git.pkg.tar.zst,target=/paru-git.pkg.tar.zst \
     set -eu \
@@ -73,7 +75,7 @@ RUN --mount=type=bind,from=build,source=/paru-git.pkg.tar.zst,target=/paru-git.p
     # =============================================================================
     # user
     # =============================================================================
-    && groupadd -g "$my_gid" "$MY_USER" \
+    && groupadd -g "$RUNBOX_GID" "$RUNBOX_USER" \
     && _gaudio="$(getent group "$audio_gid" | cut -d: -f1)" \
     && if [ -z "$_gaudio" ]; then _gaudio=host_audio; groupadd -g "$audio_gid" "$_gaudio"; fi \
     && _ginput="$(getent group "$input_gid" | cut -d: -f1)" \
@@ -82,12 +84,12 @@ RUN --mount=type=bind,from=build,source=/paru-git.pkg.tar.zst,target=/paru-git.p
     && if [ -z "$_grender" ]; then _grender=host_render; groupadd -g "$render_gid" "$_grender"; fi \
     && _gvideo="$(getent group "$video_gid" | cut -d: -f1)" \
     && if [ -z "$_gvideo" ]; then _gvideo=host_video; groupadd -g "$video_gid" "$_gvideo"; fi \
-    && useradd -g "$my_gid" -G "wheel,$_gaudio,$_ginput,$_grender,$_gvideo" -m -s "$SHELL" -u "$my_uid" "$MY_USER" \
+    && useradd -g "$RUNBOX_GID" -G "wheel,$_gaudio,$_ginput,$_grender,$_gvideo" -m -s "$SHELL" -u "$RUNBOX_UID" "$RUNBOX_USER" \
     # =============================================================================
     # sudo
     # =============================================================================
     && printf '%s\n' \
-        'Defaults env_keep += "RUNBOX_SCRIPT"' \
+        'Defaults env_keep += "RUNBOX_SCRIPT RUNBOX_GID RUNBOX_UID RUNBOX_USER"' \
         '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' \
         >/etc/sudoers.d/99-nopasswd \
     && chmod 0440 /etc/sudoers.d/99-nopasswd \
@@ -96,7 +98,7 @@ RUN --mount=type=bind,from=build,source=/paru-git.pkg.tar.zst,target=/paru-git.p
     # =============================================================================
     && yes | pacman -Scc
 
-USER "$MY_USER"
+USER "$RUNBOX_USER"
 
 RUN \
     set -eu \
@@ -242,5 +244,5 @@ RUN \
         "$XDG_RUNTIME_DIR" \
     && sudo chmod 0700 \
         "$XDG_RUNTIME_DIR" \
-    && sudo chown -R "$MY_USER:" \
+    && sudo chown -R "$RUNBOX_USER:" \
         "$XDG_RUNTIME_DIR"

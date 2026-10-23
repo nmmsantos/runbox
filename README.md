@@ -134,7 +134,7 @@ set -eu
 ME="$(readlink -f "$0")"
 
 if [ "${RUNBOX_SCRIPT:-}" != "$ME" ]; then
-    exec sudo runbox run arch java-demo "$ME" -- "$@"
+    exec runbox run arch java-demo "$ME" -- "$@"
 fi
 
 JAVA_VERSION=21.0.5+11
@@ -148,11 +148,11 @@ eval "$ACTIVATION"
 exec java -version
 ```
 
-Run it directly from the host:
+Make it executable, then run it from the host:
 
 ```sh
 chmod +x java-demo.sh
-./java-demo.sh
+sudo ./java-demo.sh
 ```
 
 The first invocation launches the same script inside an `arch` container. Runbox sets `RUNBOX_SCRIPT` to the script's absolute path, so the second invocation continues with the Java setup instead of launching another container. `-- "$@"` forwards the original script arguments.
