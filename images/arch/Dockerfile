@@ -86,7 +86,10 @@ RUN --mount=type=bind,from=build,source=/paru-git.pkg.tar.zst,target=/paru-git.p
     # =============================================================================
     # sudo
     # =============================================================================
-    && printf '%%wheel ALL=(ALL:ALL) NOPASSWD: ALL\n' >/etc/sudoers.d/99-nopasswd \
+    && printf '%s\n' \
+        'Defaults env_keep += "RUNBOX_SCRIPT"' \
+        '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' \
+        >/etc/sudoers.d/99-nopasswd \
     && chmod 0440 /etc/sudoers.d/99-nopasswd \
     # =============================================================================
     # pacman finish
