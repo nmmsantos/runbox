@@ -2,6 +2,7 @@
 
 import json
 import os
+import pwd
 import shutil
 import subprocess
 import tempfile
@@ -39,7 +40,8 @@ class ProbeInfo(TypedDict):
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path("/usr/local/bin/runbox")
-IMAGE = f"runbox-arch-{int(os.environ.get('SUDO_UID', os.getuid()))}:local"
+USER_UID = int(os.environ.get("SUDO_UID", os.getuid()))
+IMAGE = f"runbox-arch-{USER_UID}:local"
 WORK = ROOT / "test" / ".work"
 SESSION = os.environ.setdefault("RUNBOX_TEST_SESSION", uuid.uuid4().hex[:12])
 LABEL = f"runbox.integration={SESSION}"
@@ -48,7 +50,7 @@ PROBE = ROOT / "test" / "fixtures" / "probe.py"
 
 def docker(*arguments: CommandArgument) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
-        ["sudo", "-n", "docker", *map(str, arguments)], capture_output=True, check=False
+        ["docker", *map(str, arguments)], capture_output=True, check=False
     )
 
 
@@ -61,10 +63,15 @@ def cleanup_containers() -> None:
 
 class DockerTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.addCleanup(os.umask, os.umask(0o002))
         WORK.mkdir(exist_ok=True)
         self.root = Path(
             tempfile.mkdtemp(prefix=self._testMethodName[:18] + "-", dir=WORK)
         )
+        # share fixture writes with the container user when the suite runs as root
+        if os.geteuid() == 0:
+            os.chown(self.root, -1, pwd.getpwuid(USER_UID).pw_gid)
+            self.root.chmod(0o2770)
         self.scripts = self.root / "scripts"
         self.scripts.mkdir()
         self.script = self.scripts / "probe.py"
@@ -81,8 +88,6 @@ class DockerTest(unittest.TestCase):
         except PermissionError:
             subprocess.run(
                 [
-                    "sudo",
-                    "-n",
                     "chown",
                     "-R",
                     f"{os.getuid()}:{os.getgid()}",
@@ -105,11 +110,11 @@ class DockerTest(unittest.TestCase):
     ) -> list[str]:
         settings: dict[str, str | None] = {
             "PATH": "/usr/local/bin:/usr/bin:/bin",
-            "SUDO_UID": str(int(os.environ.get("SUDO_UID", os.getuid()))),
+            "SUDO_UID": str(USER_UID),
             "XDG_RUNTIME_DIR": str(self.runtime),
         }
         settings.update(environment or {})
-        command = ["sudo", "-n", "env", "-i"]
+        command = ["env", "-i"]
         command += [
             f"{key}={value}" for key, value in settings.items() if value is not None
         ]

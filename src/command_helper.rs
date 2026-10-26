@@ -1,4 +1,7 @@
-use crate::{assets::HELPERS, detection};
+use crate::{
+    assets::{HELPER_INCLUDES, HELPERS},
+    detection,
+};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use std::{
@@ -10,6 +13,10 @@ use std::{
 
 #[derive(Args)]
 pub(crate) struct Helper {
+    /// Print the composed helper script without executing it
+    #[arg(long)]
+    print: bool,
+
     #[arg(value_parser = clap::builder::PossibleValuesParser::new(HELPERS.iter().map(|(name, _)| *name)))]
     name: String,
 
@@ -24,6 +31,33 @@ impl Helper {
             .find(|(name, _)| *name == self.name)
             .expect("helper name validated by clap")
             .1;
+
+        let script = script
+            .split('\n')
+            .map(|line| {
+                let Some(name) = line.trim().strip_prefix("# runbox include ") else {
+                    return Ok(line);
+                };
+
+                let include = HELPER_INCLUDES
+                    .iter()
+                    .find(|(key, _)| *key == name.trim())
+                    .with_context(|| format!("unknown helper include: {name}"))?
+                    .1;
+
+                Ok(include
+                    .trim()
+                    .strip_prefix("#!/bin/sh")
+                    .with_context(|| format!("helper include {name} has no shell shebang"))?
+                    .trim())
+            })
+            .collect::<Result<Vec<_>>>()?
+            .join("\n");
+
+        if self.print {
+            io::stdout().lock().write_all(script.as_bytes())?;
+            return Ok(0);
+        }
 
         ensure!(
             detection::in_container(),

@@ -48,6 +48,7 @@ pub(crate) fn resolve_user() -> Result<HostUser> {
                 uid = value
                     .parse()
                     .with_context(|| format!("{name} must be a valid UID"))?;
+
                 break;
             }
             Err(env::VarError::NotPresent) => continue,
@@ -167,7 +168,9 @@ pub(crate) fn wayland(command: &mut Command, runtime_dir: &Path) -> bool {
     if let Some(path) = &wayland {
         let display = path.strip_prefix(runtime_dir).unwrap_or(path);
         let mut display_env = OsString::from("WAYLAND_DISPLAY=");
+
         display_env.push(display);
+
         command.arg("-e").arg(display_env);
         command.arg("--mount").arg(mount_spec(path, true));
     }

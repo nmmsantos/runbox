@@ -4,6 +4,8 @@ set -eu
 
 exec 3>&1 >&2
 
+# runbox include common
+
 if [ "$#" -lt 1 ] || [ -z "${1:-}" ]; then
     printf 'usage: %s <base-dir> [gamescope arguments...]\n' "${0##*/}" >&2
     exit 1
@@ -18,7 +20,7 @@ DEST="$(readlink -f "$BASE_DIR")/bin"
 GAMESCOPE_ARGS=
 
 for ARG in "$@"; do
-    QUOTED_ARG="$(printf "'"; printf '%s' "$ARG" | sed "s/'/'\\\\''/g"; printf "'")"
+    QUOTED_ARG="$(shell_quote "$ARG")"
     GAMESCOPE_ARGS="${GAMESCOPE_ARGS:+$GAMESCOPE_ARGS }$QUOTED_ARG"
 done
 
@@ -58,13 +60,4 @@ print_wrapper >"$DEST/gs"
 
 chmod 0755 "$DEST/gs"
 
-QUOTED_DEST="$(printf "'"; printf '%s' "$DEST" | sed "s/'/'\\\\''/g"; printf "'")"
-
-tee /dev/fd/3 >/dev/null <<SH
-case ":\$PATH:" in
-    *:$QUOTED_DEST:*) ;;
-    *) PATH=$QUOTED_DEST:"\$PATH" ;;
-esac
-
-export PATH
-SH
+activate_path "$DEST"

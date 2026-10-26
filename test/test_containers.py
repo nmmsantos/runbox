@@ -3,7 +3,7 @@ import os
 import subprocess
 import time
 
-from support import BINARY, IMAGE, LABEL, DockerTest, docker
+from support import BINARY, IMAGE, LABEL, USER_UID, DockerTest, docker
 
 
 class ContainerTests(DockerTest):
@@ -13,8 +13,8 @@ class ContainerTests(DockerTest):
         self.assertEqual(info["script"], str(self.script))
         self.assertEqual(info["marker"], str(self.script))
         self.assertEqual(info["binary"], str(BINARY))
-        self.assertEqual(info["uid"], 1000)
-        self.assertEqual(info["runtime_dir"], "/run/user/1000")
+        self.assertEqual(info["uid"], USER_UID)
+        self.assertEqual(info["runtime_dir"], f"/run/user/{USER_UID}")
         self.assertIn(" /usr/local/bin/runbox ro,", info["mounts"])
         image_env = json.loads(
             docker("image", "inspect", IMAGE, "--format", "{{json .Config.Env}}").stdout
@@ -295,8 +295,6 @@ printf '%s\\n' "$RUNBOX_SCRIPT" "$@"
         )
         script.chmod(0o755)
         command = [
-            "sudo",
-            "-n",
             "env",
             "-i",
             "PATH=/usr/local/bin:/usr/bin:/bin",

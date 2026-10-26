@@ -1,5 +1,8 @@
 pub(crate) const IMAGES: &[(&str, &str)] = &[("arch", include_str!("../images/arch/Dockerfile"))];
 
+pub(crate) const HELPER_INCLUDES: &[(&str, &str)] =
+    &[("common", include_str!("../helpers/_common.sh"))];
+
 pub(crate) const HELPERS: &[(&str, &str)] = &[
     ("gamescope", include_str!("../helpers/gamescope.sh")),
     ("java", include_str!("../helpers/java.sh")),

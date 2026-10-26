@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Build, install, and exercise runbox on the host and inside real containers."""
+"""Exercise the installed runbox on the host and inside real containers."""
 
 import argparse
 import atexit
@@ -26,22 +25,13 @@ def main() -> int:
     parser.add_argument(
         "--pattern", default="test_*.py", help="unittest discovery pattern"
     )
-    parser.add_argument(
-        "--no-build",
-        action="store_true",
-        help="use the already installed binary",
-    )
     args = parser.parse_args()
     os.chdir(ROOT)
     WORK.mkdir(exist_ok=True)
-    checked("sudo", "-n", "true")
-    checked("cargo", "fmt", "--check")
-    checked("cargo", "clippy", "--", "-D", "warnings")
-    if not args.no_build:
-        checked("make", "dev")
-        checked("sudo", "-n", "make", "install-dev")
     if not BINARY.is_file():
-        raise SystemExit(f"{BINARY} is missing; run without --no-build")
+        raise SystemExit(
+            f"{BINARY} is missing; install it with make install-dev or make install first"
+        )
     image = docker("image", "inspect", IMAGE, "--format", "{{.Id}}")
     if image.returncode:
         raise SystemExit(
@@ -68,6 +58,8 @@ def main() -> int:
         "tests_run": result.testsRun,
         "failures": [name.id() for name, _ in result.failures],
         "errors": [name.id() for name, _ in result.errors],
+        "failure_details": {name.id(): detail for name, detail in result.failures},
+        "error_details": {name.id(): detail for name, detail in result.errors},
         "skipped": [(name.id(), reason) for name, reason in result.skipped],
         "expected_failures": [name.id() for name, _ in result.expectedFailures],
         "unexpected_successes": [name.id() for name in result.unexpectedSuccesses],

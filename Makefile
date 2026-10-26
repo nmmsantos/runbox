@@ -1,13 +1,22 @@
 PREFIX ?= /usr/local
 TARGET ?= x86_64-unknown-linux-musl
 
-.PHONY: dev release install install-dev uninstall
+.DEFAULT_GOAL := dev
 
-dev:
+.PHONY: dev release lint test install install-dev uninstall
+
+dev: lint
 	cargo build --locked --target "$(TARGET)"
 
-release:
+release: lint
 	cargo build --release --locked --target "$(TARGET)"
+
+lint:
+	cargo fmt --check
+	cargo clippy --locked --target "$(TARGET)" -- -D warnings
+
+test:
+	python3 -B test/run.py
 
 install:
 	install -Dm 0755 "target/$(TARGET)/release/runbox" "$(DESTDIR)$(PREFIX)/bin/runbox"

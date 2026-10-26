@@ -4,6 +4,8 @@ set -eu
 
 exec 3>&1 >&2
 
+# runbox include common
+
 if [ "$#" -ne 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
     printf 'usage: %s <base-dir> <version>\n' "${0##*/}" >&2
     exit 1
@@ -29,13 +31,4 @@ if [ ! -d "$DEST" ]; then
     mv -T "$INSTALL_DIR/app" "$DEST"
 fi
 
-QUOTED_DEST="$(printf "'"; printf '%s' "$DEST" | sed "s/'/'\\\\''/g"; printf "'")"
-
-tee /dev/fd/3 >/dev/null <<SH
-case ":\$PATH:" in
-    *:$QUOTED_DEST:*) ;;
-    *) PATH=$QUOTED_DEST:"\$PATH" ;;
-esac
-
-export PATH
-SH
+activate_path "$DEST"

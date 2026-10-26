@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from support import BINARY, IMAGE, CommandArgument, DockerTest
+from support import BINARY, CommandArgument, DockerTest
 
 
 class BuildCommandTests(DockerTest):
@@ -101,7 +101,8 @@ if args[0] == 'run':
     def test_existing_image_reused_without_build(self):
         self.invoke()
         self.assertFalse(any(call[0] == "build" for call in self.calls))
-        self.assertTrue(any(call[0] == "run" and IMAGE in call for call in self.calls))
+        image = f"runbox-arch-{os.getuid()}:local"
+        self.assertTrue(any(call[0] == "run" and image in call for call in self.calls))
 
     def test_missing_image_builds_embedded_dockerfile(self):
         self.invoke(FIXTURE_INSPECT_CODE="1")
