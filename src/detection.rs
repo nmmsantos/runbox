@@ -130,6 +130,10 @@ pub(crate) fn devices(command: &mut Command) {
         }
     }
 
+    if is_device(Path::new("/dev/kfd")) {
+        command.args(["--device", "/dev/kfd"]);
+    }
+
     for n in 1..5 {
         let path = format!("/dev/tty{n}");
         if is_device(Path::new(&path)) {
