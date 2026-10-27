@@ -25,15 +25,15 @@ From the project directory:
 
 ```sh
 make release
-sudo make install
+sudo make install-release
 ```
 
-`make` (or `make dev`) builds a statically linked debug executable at `target/x86_64-unknown-linux-musl/debug/runbox`. `make release` builds a stripped, statically linked executable at `target/x86_64-unknown-linux-musl/release/runbox` that does not require the system's libc. `make install` copies the release executable to `/usr/local/bin/runbox`; build it first so compilation runs as your normal user.
+`make` (or `make dev`) builds a statically linked debug executable at `target/x86_64-unknown-linux-musl/debug/runbox`. `make release` builds a stripped, statically linked executable at `target/x86_64-unknown-linux-musl/release/runbox` that does not require the system's libc. `make install` builds and installs the debug executable; `make install-release` builds and installs the release executable. Both install to `/usr/local/bin/runbox` by default.
 
 To install for your user instead:
 
 ```sh
-make install PREFIX="$HOME/.local"
+make install-release PREFIX="$HOME/.local"
 ```
 
 Ensure the chosen prefix's `bin` directory is on your `PATH`. `DESTDIR` is also supported for staged installations.
@@ -47,6 +47,7 @@ runbox --help
 runbox build --help
 runbox run --help
 runbox helper --help
+runbox bundle --help
 ```
 
 The command help lists the available images and helpers. The examples use the `arch` image.
@@ -162,6 +163,25 @@ The `java` helper takes a parent destination directory followed by an exact JDK 
 The example pins a Java version and stores it in `.data` beside the script. That directory is in the automatic writable mount, so the installation survives container removal and is reused on subsequent runs. Change `JAVA_VERSION` to select another release; the helper creates a separate folder for each version.
 
 The final command prints the installed Java version. Helpers run inside the container, and their diagnostics go to standard error. Standard output is forwarded only when the helper succeeds.
+
+## Bundle an application
+
+Inside the target environment, with `ldd` and `patchelf` installed:
+
+```sh
+runbox bundle ./bundle --library-path /opt/app/lib --exclude '/usr/share/doc/*' -- /opt/app
+```
+
+The destination must be new or empty. Source paths are preserved beneath it,
+and symlinks are copied as their contents. `ldd` collects transitive libraries;
+exclusions apply afterwards. Each copied ELF gets a relative RUNPATH for its
+bundled dependencies. Conflicting resolutions of the same library name are rejected.
+The interpreter stays unchanged, so the destination needs a compatible loader
+and libc. Application data paths and transferring the bundle are your responsibility.
+
+Use `--dry-run` to print the planned copy and patch operations without writing files.
+Discovery finishes before the plan is printed or executed, so unresolved libraries
+fail without creating the destination or copying any files.
 
 ## Host integration
 

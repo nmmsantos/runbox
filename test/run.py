@@ -30,7 +30,7 @@ def main() -> int:
     WORK.mkdir(exist_ok=True)
     if not BINARY.is_file():
         raise SystemExit(
-            f"{BINARY} is missing; install it with make install-dev or make install first"
+            f"{BINARY} is missing; install it with make install or make install-release first"
         )
     image = docker("image", "inspect", IMAGE, "--format", "{{.Id}}")
     if image.returncode:

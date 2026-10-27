@@ -1,4 +1,6 @@
-use crate::{command_build::Build, command_helper::Helper, command_run::Run};
+use crate::{
+    command_build::Build, command_bundle::Bundle, command_helper::Helper, command_run::Run,
+};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::process;
@@ -16,6 +18,9 @@ enum Action {
     /// Build the selected Docker image
     Build(Build),
 
+    /// Bundle files and their shared libraries using ldd and patchelf
+    Bundle(Bundle),
+
     /// Run a script in a Docker container
     Run(Run),
 
@@ -26,6 +31,7 @@ enum Action {
 fn execute() -> Result<i32> {
     match Cli::parse().command {
         Action::Build(command) => command.execute().map(|()| 0),
+        Action::Bundle(command) => command.execute().map(|()| 0),
         Action::Run(command) => command.execute().map(|()| 0),
         Action::Helper(command) => command.execute(),
     }
