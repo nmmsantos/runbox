@@ -1,4 +1,4 @@
-use crate::{assets::IMAGES, command_build, detection};
+use crate::{assets, command_build, detection};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use std::{
@@ -13,7 +13,7 @@ use std::{
 
 #[derive(Args)]
 pub(crate) struct Run {
-    #[arg(value_name = "IMAGE_NAME", value_parser = clap::builder::PossibleValuesParser::new(IMAGES.iter().map(|(name, _)| *name)))]
+    #[arg(value_name = "IMAGE_NAME", value_parser = clap::builder::PossibleValuesParser::new(assets::image_names()))]
     image_suffix: String,
 
     #[arg(value_name = "CONTAINER_NAME")]
@@ -22,11 +22,11 @@ pub(crate) struct Run {
     script: PathBuf,
 
     /// Bind a path read/write (repeatable)
-    #[arg(long = "path", value_name = "PATH")]
+    #[arg(short = 'p', long = "path", value_name = "PATH")]
     paths: Vec<PathBuf>,
 
     /// Bind a path read-only (repeatable)
-    #[arg(long = "ro-path", value_name = "PATH")]
+    #[arg(short = 'r', long = "ro-path", value_name = "PATH")]
     ro_paths: Vec<PathBuf>,
 
     #[arg(allow_hyphen_values = true, value_name = "DOCKER_ARGUMENTS")]

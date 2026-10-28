@@ -1,7 +1,4 @@
-use crate::{
-    assets::{HELPER_INCLUDES, HELPERS},
-    detection,
-};
+use crate::{assets, detection, shim_linuxdeploy};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use std::{
@@ -11,13 +8,17 @@ use std::{
     process::{Command, Stdio},
 };
 
+type Hook = fn(bool) -> Result<String>;
+
+const REGISTRY: &[(&str, Hook)] = &[("linuxdeploy", shim_linuxdeploy::pre_run)];
+
 #[derive(Args)]
 pub(crate) struct Helper {
     /// Print the composed helper script without executing it
-    #[arg(long)]
+    #[arg(short = 'p', long)]
     print: bool,
 
-    #[arg(value_parser = clap::builder::PossibleValuesParser::new(HELPERS.iter().map(|(name, _)| *name)))]
+    #[arg(value_parser = clap::builder::PossibleValuesParser::new(assets::helper_names()))]
     name: String,
 
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -26,24 +27,27 @@ pub(crate) struct Helper {
 
 impl Helper {
     pub(crate) fn execute(self) -> Result<i32> {
-        let script = HELPERS
+        let script = assets::helper(&self.name)?;
+
+        let pre_run_output = REGISTRY
             .iter()
             .find(|(name, _)| *name == self.name)
-            .expect("helper name validated by clap")
-            .1;
+            .map(|(_, hook)| hook(self.print))
+            .transpose()?
+            .unwrap_or_default();
 
         let script = script
             .split('\n')
             .map(|line| {
+                if line.trim() == "# runbox pre-run-output" {
+                    return Ok(pre_run_output.as_str());
+                }
+
                 let Some(name) = line.trim().strip_prefix("# runbox include ") else {
                     return Ok(line);
                 };
 
-                let include = HELPER_INCLUDES
-                    .iter()
-                    .find(|(key, _)| *key == name.trim())
-                    .with_context(|| format!("unknown helper include: {name}"))?
-                    .1;
+                let include = assets::helper_include(name.trim())?;
 
                 Ok(include
                     .trim()

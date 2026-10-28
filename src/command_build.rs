@@ -1,4 +1,4 @@
-use crate::{assets::IMAGES, detection};
+use crate::{assets, detection};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use nix::unistd::Group;
@@ -10,7 +10,7 @@ use std::{
 
 #[derive(Args)]
 pub(crate) struct Build {
-    #[arg(value_name = "IMAGE_NAME", value_parser = clap::builder::PossibleValuesParser::new(IMAGES.iter().map(|(name, _)| *name)))]
+    #[arg(value_name = "IMAGE_NAME", value_parser = clap::builder::PossibleValuesParser::new(assets::image_names()))]
     image_suffix: String,
 }
 
@@ -24,11 +24,7 @@ impl Build {
 }
 
 pub(crate) fn run(image_suffix: &str, image_tag: &str, user: &detection::HostUser) -> Result<()> {
-    let dockerfile = IMAGES
-        .iter()
-        .find(|(name, _)| *name == image_suffix)
-        .expect("image name validated by clap")
-        .1;
+    let dockerfile = assets::image(image_suffix)?;
 
     let mut build = Command::new("docker");
 
