@@ -14,7 +14,7 @@ use std::{
 #[derive(Args)]
 pub(crate) struct Helper {
     /// Print the composed helper script without executing it
-    #[arg(long)]
+    #[arg(short = 'p', long)]
     print: bool,
 
     #[arg(value_parser = clap::builder::PossibleValuesParser::new(HELPERS.iter().map(|(name, _)| *name)))]

@@ -18,7 +18,7 @@ enum Action {
     /// Build the selected Docker image
     Build(Build),
 
-    /// Bundle files and their shared libraries using ldd and patchelf
+    /// Bundle executables and libraries using linuxdeploy
     Bundle(Bundle),
 
     /// Run a script in a Docker container
