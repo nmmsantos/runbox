@@ -1,0 +1,44 @@
+Flag could not be matched: helpo
+  ./binaries/linuxdeploy {OPTIONS}
+
+    linuxdeploy -- create AppDir bundles with ease
+
+  OPTIONS:
+
+      -h, --help                        Display this help text
+      -V, --version                     Print version and exit
+      -v[verbosity],
+      --verbosity=[verbosity]           Verbosity of log output (0 = debug, 1 =
+                                        info (default), 2 = warning, 3 = error)
+      --appdir=[appdir]                 Path to target AppDir
+      -l[library...],
+      --library=[library...]            Shared library to deploy
+      --exclude-library=[pattern...]    Shared library to exclude from
+                                        deployment (glob pattern)
+      -e[executable...],
+      --executable=[executable...]      Executable to deploy
+      --deploy-deps-only=[path...]      Path to ELF file or directory containing
+                                        such files (libraries or executables)
+                                        already present in the AppDir whose
+                                        dependencies shall be deployed by
+                                        linuxdeploy without copying them again
+                                        into the AppDir. rpath for these
+                                        libraries or executables will be updated
+                                        accordingly.
+      -d[desktop file...],
+      --desktop-file=[desktop file...]  Desktop file to deploy
+      --create-desktop-file             Create basic desktop file that is good
+                                        enough for some tests
+      -i[icon file...],
+      --icon-file=[icon file...]        Icon to deploy
+      --icon-filename=[filename]        Filename all icons passed via -i should
+                                        be renamed to
+      --custom-apprun=[AppRun path]     Path to custom AppRun script
+                                        (linuxdeploy will not create a symlink
+                                        but copy this file instead)
+      --list-plugins                    Search for plugins, print them to stdout
+                                        and exit
+      -p[name...], --plugin=[name...]   Input plugins to run (check whether they
+                                        are available with --list-plugins)
+      -o[name...], --output=[name...]   Output plugins to run (check whether
+                                        they are available with --list-plugins)

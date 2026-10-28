@@ -22,11 +22,11 @@ pub(crate) struct Run {
     script: PathBuf,
 
     /// Bind a path read/write (repeatable)
-    #[arg(long = "path", value_name = "PATH")]
+    #[arg(short = 'p', long = "path", value_name = "PATH")]
     paths: Vec<PathBuf>,
 
     /// Bind a path read-only (repeatable)
-    #[arg(long = "ro-path", value_name = "PATH")]
+    #[arg(short = 'r', long = "ro-path", value_name = "PATH")]
     ro_paths: Vec<PathBuf>,
 
     #[arg(allow_hyphen_values = true, value_name = "DOCKER_ARGUMENTS")]

@@ -166,22 +166,25 @@ The final command prints the installed Java version. Helpers run inside the cont
 
 ## Bundle an application
 
-Inside the target environment, with `ldd` and `patchelf` installed:
+Run bundling in the environment where the application works. `ldd` must be available.
 
 ```sh
-runbox bundle ./bundle --library-path /opt/app/lib --exclude '/usr/share/doc/*' -- /opt/app
+runbox bundle ./bundle -L /opt/app/lib -e '/opt/app/bin/*' -l '/opt/plugins/*.so*'
 ```
 
-The destination must be new or empty. Source paths are preserved beneath it,
-and symlinks are copied as their contents. `ldd` collects transitive libraries;
-exclusions apply afterwards. Each copied ELF gets a relative RUNPATH for its
-bundled dependencies. Conflicting resolutions of the same library name are rejected.
-The interpreter stays unchanged, so the destination needs a compatible loader
-and libc. Application data paths and transferring the bundle are your responsibility.
+The destination must be new or empty. `-e` places files in `usr/bin`; `-l` places
+libraries in `usr/lib`. Both accept multiple files and quoted globs; matched
+directories are skipped. Pass a library with `-e` when
+it needs to sit beside the executable. Non-ELF files passed with `-e` are copied
+unchanged; `-l` inputs must be ELF libraries.
 
-Use `--dry-run` to print the planned copy and patch operations without writing files.
-Discovery finishes before the plan is printed or executed, so unresolved libraries
-fail without creating the destination or copying any files.
+Embedded linuxdeploy collects dependencies and adjusts library search paths.
+`--library-path` adds directories before the inherited `LD_LIBRARY_PATH`;
+`--exclude-library` passes a library name glob to linuxdeploy. Its standard
+system-library exclusions still apply, so the target needs compatible system
+libraries. `usr/share` is removed after deployment.
+
+Application data and transferring the bundle are your responsibility.
 
 ## Host integration
 
