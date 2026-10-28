@@ -3,7 +3,7 @@ TARGET ?= x86_64-unknown-linux-musl
 
 .DEFAULT_GOAL := dev
 
-.PHONY: dev release lint test install install-release uninstall
+.PHONY: dev release binaries lint test install install-release uninstall
 
 dev: lint
 	cargo build --locked --target "$(TARGET)"
@@ -11,7 +11,10 @@ dev: lint
 release: lint
 	cargo build --release --locked --target "$(TARGET)"
 
-lint:
+binaries:
+	./binaries/download.sh
+
+lint: binaries
 	cargo fmt --check
 	cargo clippy --locked --target "$(TARGET)" -- -D warnings
 
