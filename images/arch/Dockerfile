@@ -127,7 +127,6 @@ RUN \
         base-devel \
         cmake \
         ninja \
-        patchelf \
         # interactive shell and troubleshooting
         bash-completion \
         bat \

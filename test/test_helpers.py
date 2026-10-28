@@ -40,7 +40,15 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         return {"PATH": f"{directory}:/usr/local/bin:/usr/bin:/bin"}
 
     def test_installer_usage_and_no_output_on_failure(self):
-        for name in ("java", "javafx", "uv", "wine", "wine-mono", "gamescope"):
+        for name in (
+            "java",
+            "javafx",
+            "nodejs",
+            "uv",
+            "wine",
+            "wine-mono",
+            "gamescope",
+        ):
             with self.subTest(helper=name):
                 result = self.helper(name)
                 self.assertEqual(result["code"], 1)
@@ -58,13 +66,14 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
         folder = {
             "java": f"java-temurin-{version}",
             "javafx": f"javafx-{version}",
+            "nodejs": f"nodejs-{version}",
             "uv": f"uv-{version}",
             "wine": f"wine-{publisher}-{flavor}-{version}",
         }[name]
         return destination / folder
 
     def test_cached_installers_and_activation_without_runtimes_dir(self):
-        for name in ("java", "javafx", "uv", "wine"):
+        for name in ("java", "javafx", "nodejs", "uv", "wine"):
             with self.subTest(helper=name):
                 dest = self.scripts / f"{name} runtime"
                 installed = self.installation(dest, name)
@@ -83,18 +92,23 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 expression = {
                     "java": "$JAVA_HOME",
                     "javafx": "$JAVAFX_HOME",
+                    "nodejs": "${PATH%%:*}",
                     "uv": "${PATH%%:*}",
                     "wine": "${PATH%%:*}",
                 }[name]
                 script = activation + '\nprintf "%s\\n" "' + expression + '"\n'
                 code = f"print(subprocess.check_output(['sh', '-c', {script!r}], text=True), end='')"
-                expected = str(installed / "bin") if name == "wine" else str(installed)
+                expected = (
+                    str(installed / "bin")
+                    if name in ("nodejs", "wine")
+                    else str(installed)
+                )
                 self.assertEqual(
                     self.run_script(code).stdout.decode().strip(), expected
                 )
 
     def test_activation_handles_shell_metacharacters_in_destination(self):
-        for name in ("java", "javafx", "uv", "wine"):
+        for name in ("java", "javafx", "nodejs", "uv", "wine"):
             with self.subTest(helper=name):
                 dest = self.scripts / (name + ' "quoted" $HOME `literal` single\' *')
                 installed = self.installation(dest, name)
@@ -109,12 +123,17 @@ print(json.dumps({{'code': result.returncode, 'stdout': result.stdout.decode(), 
                 expression = {
                     "java": "$JAVA_HOME",
                     "javafx": "$JAVAFX_HOME",
+                    "nodejs": "${PATH%%:*}",
                     "uv": "${PATH%%:*}",
                     "wine": "${PATH%%:*}",
                 }[name]
                 script = result["stdout"] + '\nprintf "%s\\n" "' + expression + '"\n'
                 code = f"print(subprocess.check_output(['sh', '-c', {script!r}], text=True), end='')"
-                expected = str(installed / "bin") if name == "wine" else str(installed)
+                expected = (
+                    str(installed / "bin")
+                    if name in ("nodejs", "wine")
+                    else str(installed)
+                )
                 self.assertEqual(
                     self.run_script(code).stdout.decode().strip(), expected
                 )
@@ -308,6 +327,9 @@ assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
             return str(path)
 
         java = tar_payload("java.tar.gz", "w:gz", "jdk-fixture", ("java", "javac"))
+        nodejs = tar_payload(
+            "nodejs.tar.xz", "w:xz", "node-fixture", ("node", "npm", "npx")
+        )
         wine = tar_payload("wine.tar.xz", "w:xz", "wine-fixture", ("wine",))
         proton = tar_payload("proton.tar.gz", "w:gz", "release/files", ("wine",))
         javafx = archives / "javafx.zip"
@@ -325,6 +347,7 @@ assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
         payloads = {
             "uv": str(uv),
             "java": java,
+            "nodejs": nodejs,
             "wine": wine,
             "proton": proton,
             "javafx": str(javafx),
@@ -339,6 +362,9 @@ assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
                 data = b'#!/bin/sh\\nexit 0\\n'
             elif 'adoptium.net' in url:
                 data = pathlib.Path(payloads['java']).read_bytes()
+            elif 'nodejs.org' in url:
+                assert url.endswith('/node-vfixture-linux-x64.tar.xz') or url.endswith('/node-vother-version-linux-x64.tar.xz'), url
+                data = pathlib.Path(payloads['nodejs']).read_bytes()
             elif 'openjfx' in url:
                 data = pathlib.Path(payloads['javafx']).read_bytes()
             elif 'astral-sh/uv' in url:
@@ -359,6 +385,8 @@ assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
         cases = [
             ("java", ["fixture"], "bin/java"),
             ("java", ["other-version"], "bin/java"),
+            ("nodejs", ["fixture"], "bin/node"),
+            ("nodejs", ["other-version"], "bin/node"),
             ("uv", ["fixture"], "uv"),
             ("uv", ["other-version"], "uv"),
             ("javafx", ["fixture"], "lib/javafx.controls.jar"),
@@ -402,7 +430,7 @@ assert json.loads(received) == ['--backend', 'drm', '--', 'app argument']
             "curl",
             "import sys; print('fixture download failed', file=sys.stderr); sys.exit(22)\n",
         )
-        for name in ("java", "javafx", "uv", "wine"):
+        for name in ("java", "javafx", "nodejs", "uv", "wine"):
             with self.subTest(helper=name):
                 dest = self.scripts / ("failed-" + name)
                 args: list[CommandArgument] = (
